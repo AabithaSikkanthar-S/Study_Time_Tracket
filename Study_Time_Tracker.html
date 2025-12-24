@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Study Time Tracker</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root{
+      --bg:#0f172a; --muted:#111827; --card:#0b1223; --text:#e5e7eb; --accent:#22c55e; --accent2:#3b82f6; --danger:#ef4444; --ring: rgba(59,130,246,0.35);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0; font-family:ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; background:linear-gradient(180deg,#0b1021,#0e1630 60%,#0b1223); color:var(--text);}
+    .app{display:grid; grid-template-columns: 260px 1fr; min-height:100vh}
+    aside{background:rgba(255,255,255,0.02); border-right:1px solid rgba(255,255,255,0.06); backdrop-filter: blur(6px);}
+    .brand{display:flex;align-items:center;gap:.75rem;padding:1rem 1.25rem;border-bottom:1px solid rgba(255,255,255,0.06)}
+    .logo{width:38px;height:38px;border-radius:12px;background:radial-gradient(circle at 30% -10%, #60a5fa, transparent 50%), radial-gradient(circle at 120% 120%, #22c55e, transparent 45%), #111827;border:1px solid rgba(255,255,255,0.06)}
+    .brand h1{font-size:1.05rem;margin:0;letter-spacing:.3px}
+    nav{padding:.75rem}
+    .nav-btn{display:flex;align-items:center;gap:.65rem;width:100%;padding:.7rem .9rem;margin:.25rem 0;border:1px solid rgba(255,255,255,0.06);border-radius:14px;background:#0e1220;color:var(--text);cursor:pointer}
+    .nav-btn.active,.nav-btn:hover{border-color:rgba(59,130,246,0.5); box-shadow:0 0 0 3px var(--ring)}
+    main{padding:1.25rem 1.5rem}
+    .header{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:1rem}
+    .grid{display:grid; gap:1rem}
+    .grid.cols-2{grid-template-columns:1fr 1fr}
+    .grid.cols-3{grid-template-columns:repeat(3, 1fr)}
+    .card{background: radial-gradient(120% 150% at 10% -20%, rgba(59,130,246,0.12), transparent 40%), radial-gradient(100% 160% at 120% 140%, rgba(34,197,94,0.12), transparent 40%), var(--card); border:1px solid rgba(255,255,255,0.08); border-radius:18px; padding:1rem}
+    .card h3{margin:.1rem 0 .6rem;font-size:1rem}
+    .muted{opacity:.8;font-size:.9rem}
+    .btn{display:inline-flex;align-items:center;gap:.5rem;padding:.6rem .9rem;border-radius:12px;border:1px solid rgba(255,255,255,0.09);background:#10172a;color:var(--text);cursor:pointer}
+    .btn.primary{background:linear-gradient(90deg,var(--accent2),#60a5fa);color:white;border:none}
+    .btn.success{background:linear-gradient(90deg,#16a34a,#22c55e);color:white;border:none}
+    .btn.danger{background:linear-gradient(90deg,#ef4444,#f97316);color:white;border:none}
+    .btn:disabled{opacity:.6;cursor:not-allowed}
+    input,select,textarea{width:100%;padding:.6rem .7rem;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:#0f172a;color:var(--text)}
+    label{display:block;margin:.4rem 0 .3rem;font-size:.9rem;opacity:.9}
+    .kpi{font-size:1.6rem;font-weight:700}
+    .pill{display:inline-flex;align-items:center;gap:.4rem;border:1px solid rgba(255,255,255,0.12);padding:.35rem .6rem;border-radius:999px;font-size:.8rem}
+    .row{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
+    .table{width:100%;border-collapse:collapse}
+    .table th,.table td{border-bottom:1px dashed rgba(255,255,255,0.12);padding:.55rem;text-align:left}
+    .hidden{display:none}
+    .avatar{width:80px;height:80px;border-radius:16px;object-fit:cover;border:1px solid rgba(255,255,255,0.12)}
+    footer{opacity:.8;padding:1rem;text-align:center}
+    @media (max-width: 900px){.app{grid-template-columns:1fr} aside{position:sticky;top:0;z-index:50} main{padding:1rem}}
+  </style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <div class="brand">
+      <div class="logo" aria-hidden="true"></div>
+      <h1>Study Time Tracker</h1>
+    </div>
+    <nav>
+      <button class="nav-btn active" data-page="dashboard">📊 Dashboard</button>
+      <button class="nav-btn" data-page="timer">⏱ Timer</button>
+      <button class="nav-btn" data-page="pomodoro">🍅 Pomodoro</button>
+      <button class="nav-btn" data-page="sessions">📚 Sessions</button>
+      <button class="nav-btn" data-page="reminders">🔔 Reminders</button>
+      <button class="nav-btn" data-page="profile">👤 Profile</button>
+      <button class="nav-btn" data-page="settings">⚙ Settings</button>
+    </nav>
+  </aside>
+
+  <main>
+    <div class="header">
+      <div>
+        <div class="row">
+          <span class="pill">LocalStorage • Offline</span>
+          <span class="pill" id="notifyStatus">Notifications: Off</span>
+        </div>
+        <h2 style="margin:.4rem 0 0">Welcome, <span id="userName">Student</span> 👋</h2>
+      </div>
+      <div class="row">
+        <button class="btn" id="btnNotify">Enable Notifications</button>
+        <button class="btn" id="btnExport">Export Data</button>
+        <input type="file" id="importFile" class="hidden" accept="application/json" />
+        <button class="btn" id="btnImport">Import</button>
+      </div>
+    </div>
+    <section id="page-dashboard">
+      <div class="grid cols-3">
+        <div class="card"><h3>Today</h3><div class="kpi" id="kpi-today">0m</div><div class="muted" id="kpi-today-sub">Goal: 120m</div></div>
+        <div class="card"><h3>This Week</h3><div class="kpi" id="kpi-week">0m</div><div class="muted" id="kpi-week-sub">7-day total</div></div>
+        <div class="card"><h3>Sessions</h3><div class="kpi" id="kpi-count">0</div><div class="muted">All time</div></div>
+      </div>
+      <div class="grid cols-2" style="margin-top:1rem">
+        <div class="card">
+          <div class="row" style="justify-content:space-between"><h3>Daily Minutes (Last 7 days) — Bar</h3>
+            <div class="row">
+              <label for="chartType" style="margin:0">Chart:</label>
+              <select id="chartType">
+                <option value="bar">Bar</option>
+                <option value="line">Line</option>
+                <option value="pie">Pie (share)</option>
+              </select>
+            </div>
+          </div>
+          <canvas id="chartDaily" height="120"></canvas>
+        </div>
+        <div class="card">
+          <h3>Weekly Trend — Line</h3>
+          <canvas id="chartWeekly" height="120"></canvas>
+        </div>
+      </div>
+    </section>
+    <section id="page-timer" class="hidden">
+      <div class="grid cols-2">
+        <div class="card">
+          <h3>Study Timer</h3>
+          <label>Subject / Topic</label>
+          <input id="subject" placeholder="e.g., Math – Calculus" />
+          <div class="row" style="margin-top:.6rem">
+            <button class="btn success" id="btnStart">Start</button>
+            <button class="btn" id="btnPause" disabled>Pause</button>
+            <button class="btn danger" id="btnReset" disabled>Save & Reset</button>
+          </div>
+          <div style="font-size:3rem;font-weight:800;margin-top:.6rem" id="timer">00:00:00</div>
+          <div class="row">
+            <span class="pill" id="liveSubject">No subject</span>
+            <span class="pill" id="since">—</span>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Quick Add Session</h3>
+          <div class="grid cols-2">
+            <div>
+              <label>Date & Time</label>
+              <input type="datetime-local" id="qaDate" />
+            </div>
+            <div>
+              <label>Minutes</label>
+              <input type="number" id="qaMinutes" min="1" value="30" />
+            </div>
+          </div>
+          <label>Subject</label>
+          <input id="qaSubject" placeholder="e.g., Physics – Optics" />
+          <button class="btn primary" id="btnQuickAdd" style="margin-top:.6rem">Add Session</button>
+        </div>
+      </div>
+    </section>
+<section id="page-pomodoro" class="hidden">
+  <div class="card">
+    <h3>🍅 Pomodoro Timer</h3>
+    <div class="row" style="align-items:center;gap:1rem">
+      <div style="font-size:2.4rem;font-weight:800" id="pomo-display">25:00</div>
+      <div style="display:flex;flex-direction:column;gap:.5rem">
+        <div class="row">
+          <button class="btn success" id="pomoStart">Start</button>
+          <button class="btn" id="pomoPause">Pause</button>
+          <button class="btn danger" id="pomoReset">Reset</button>
+        </div>
+        <div class="row">
+          <span class="muted" id="pomo-status">Ready to Focus!</span>
+          <span class="pill" id="pomo-cycles">0 cycles</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+    <section id="page-sessions" class="hidden">
+      <div class="card">
+        <h3>All Sessions</h3>
+        <table class="table" id="tblSessions">
+          <thead>
+            <tr><th>Date</th><th>Subject</th><th>Minutes</th><th></th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+    <section id="page-reminders" class="hidden">
+      <div class="grid cols-2">
+        <div class="card">
+          <h3>Create Reminder</h3>
+          <label>Title</label>
+          <input id="rTitle" placeholder="e.g., Chemistry test" />
+          <div class="grid cols-2">
+            <div>
+              <label>Event Date & Time</label>
+              <input type="datetime-local" id="rWhen" />
+            </div>
+            <div>
+              <label>Alert Before</label>
+              <select id="rBefore">
+                <option value="0">At time</option>
+                <option value="1">1 day before</option>
+                <option value="2">2 days before</option>
+                <option value="3">3 days before</option>
+              </select>
+            </div>
+          </div>
+          <label>Sound</label>
+          <select id="rSound">
+            <option>Simple Beep</option>
+            <option>Soft Ding</option>
+            <option>Bell Tone</option>
+            <option>Ping</option>
+            <option>Chime</option>
+            <option>Alert</option>
+            <option>Digital</option>
+            <option>Echo</option>
+            <option>Pulse</option>
+            <option>Wave</option>
+          </select>
+          <div class="row" style="margin-top:.6rem">
+            <button class="btn" id="btnTestSound">Test Sound</button>
+            <button class="btn primary" id="btnAddReminder">Add Reminder</button>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Upcoming Reminders</h3>
+          <table class="table" id="tblReminders">
+            <thead><tr><th>When</th><th>Title</th><th>Alert</th><th>Sound</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+    <section id="page-profile" class="hidden">
+      <div class="grid cols-2">
+        <div class="card">
+          <h3>Your Profile</h3>
+          <div class="row">
+            <img id="avatar" class="avatar" alt="Profile" src="" />
+            <input type="file" id="avatarFile" accept="image/*" />
+          </div>
+          <label>Name</label>
+          <input id="pName" placeholder="Your name" />
+          <label>Email</label>
+          <input id="pEmail" placeholder="you@example.com" />
+          <label>Daily Goal (minutes)</label>
+          <input id="pGoal" type="number" min="0" value="120" />
+          <button class="btn primary" id="btnSaveProfile" style="margin-top:.6rem">Save Profile</button>
+        </div>
+        <div class="card">
+          <h3>Tips</h3>
+          <ul>
+            <li>Upload a profile photo (it will show everywhere).</li>
+            <li>Set a daily goal to watch progress on dashboard.</li>
+            <li>Use reminders to get a desktop notification + sound (1–3 days before).</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+    <section id="page-settings" class="hidden">
+      <div class="grid cols-2">
+        <div class="card">
+          <h3>Data</h3>
+          <div class="row">
+            <button class="btn" id="btnClear">Clear All Data</button>
+          </div>
+          <p class="muted">Export before clearing to keep a backup.</p>
+        </div>
+        <div class="card">
+          <h3>Notification Permission</h3>
+          <p class="muted">Allow desktop notifications to receive alerts even when this tab is in the background.</p>
+          <button class="btn" id="btnNotify2">Enable Notifications</button>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+<script>
+const store = {
+  get(k, d){ try{ return JSON.parse(localStorage.getItem(k)) ?? d }catch{ return d } },
+  set(k, v){ localStorage.setItem(k, JSON.stringify(v)) },
+  del(k){ localStorage.removeItem(k) }
+};
+const state = {
+  sessions: store.get('sessions', []), 
+  reminders: store.get('reminders', []), 
+  profile: store.get('profile', {name:'Student', email:'', goal:120, avatar:''})
+};
+
+const pages = ['dashboard','timer','pomodoro','sessions','reminders','profile','settings'];
+const navBtns = document.querySelectorAll('.nav-btn');
+navBtns.forEach(btn=>btn.addEventListener('click', ()=>{
+  const p = btn.dataset.page; showPage(p);
+  navBtns.forEach(b=>b.classList.toggle('active', b===btn));
+}));
+function showPage(id){
+  pages.forEach(p=> document.getElementById('page-'+p).classList.toggle('hidden', p!==id));
+  if(id==='dashboard') renderDashboard();
+  if(id==='sessions') renderSessions();
+  if(id==='reminders') renderReminders();
+  if(id==='profile') renderProfile();
+}
+const userNameEl = document.getElementById('userName');
+function renderProfile(){
+  document.getElementById('pName').value = state.profile.name || '';
+  document.getElementById('pEmail').value = state.profile.email || '';
+  document.getElementById('pGoal').value = state.profile.goal || 0;
+  const avatarEl = document.getElementById('avatar');
+  avatarEl.src = state.profile.avatar || '';
+}
+function saveProfile(){
+  state.profile = {
+    name: document.getElementById('pName').value.trim() || 'Student',
+    email: document.getElementById('pEmail').value.trim(),
+    goal: parseInt(document.getElementById('pGoal').value || '0', 10),
+    avatar: state.profile.avatar || ''
+  };
+  store.set('profile', state.profile);
+  userNameEl.textContent = state.profile.name || 'Student';
+  renderDashboard();
+}
+
+document.getElementById('btnSaveProfile').addEventListener('click', saveProfile);
+
+document.getElementById('avatarFile').addEventListener('change', (e)=>{
+  const f = e.target.files?.[0]; if(!f) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{ state.profile.avatar = reader.result; store.set('profile', state.profile); renderProfile(); };
+  reader.readAsDataURL(f);
+});
+let timerInt = null, startAt = null, paused = false, elapsed = 0;
+const timerEl = document.getElementById('timer');
+function fmt(n){return n.toString().padStart(2,'0')}
+function tick(){
+  const now = Date.now();
+  const secs = Math.floor((elapsed + (now - startAt))/1000);
+  const h = Math.floor(secs/3600), m = Math.floor((secs%3600)/60), s = secs%60;
+  timerEl.textContent = `${fmt(h)}:${fmt(m)}:${fmt(s)}`;
+  document.getElementById('since').textContent = 'Started: '+ new Date(startAt).toLocaleString();
+}
+function startTimer(){
+  const subj = document.getElementById('subject').value.trim();
+  document.getElementById('liveSubject').textContent = subj || 'No subject';
+  if(!startAt){ startAt = Date.now(); }
+  timerInt = setInterval(tick, 500);
+  document.getElementById('btnStart').disabled = true;
+  document.getElementById('btnPause').disabled = false;
+  document.getElementById('btnReset').disabled = false;
+}
+function pauseTimer(){
+  if(!timerInt) return; clearInterval(timerInt); timerInt = null;
+  elapsed += Date.now() - startAt; paused = true;
+  document.getElementById('btnStart').disabled = false;
+}
+function resetTimer(){
+  if(startAt==null && elapsed===0) return;
+  const minutes = Math.max(1, Math.round((elapsed + (timerInt? Date.now()-startAt:0))/60000));
+  const subject = document.getElementById('subject').value.trim() || 'General';
+  const end = new Date();
+  const start = new Date(end.getTime() - minutes*60000);
+  state.sessions.push({start: start.toISOString(), end: end.toISOString(), minutes, subject});
+  store.set('sessions', state.sessions);
+  clearInterval(timerInt); timerInt = null; startAt = null; elapsed = 0; paused=false;
+  timerEl.textContent = '00:00:00';
+  document.getElementById('btnStart').disabled = false;
+  document.getElementById('btnPause').disabled = true;
+  document.getElementById('btnReset').disabled = true;
+  renderDashboard(); renderSessions();
+}
+
+document.getElementById('btnStart').addEventListener('click', startTimer);
+
+document.getElementById('btnPause').addEventListener('click', pauseTimer);
+
+document.getElementById('btnReset').addEventListener('click', resetTimer);
+let pomoMinutes = 25;
+    let pomoSeconds = 0;
+    let pomoInterval = null;
+    let pomoIsBreak = false;
+    let pomoCycles = 0;
+
+    function updatePomoDisplay() {
+      document.getElementById('pomo-display').textContent =
+        String(pomoMinutes).padStart(2,'0') + ":" + String(pomoSeconds).padStart(2,'0');
+      document.getElementById('pomo-cycles').textContent = pomoCycles + " cycles";
+    }
+
+    function startPomodoro() {
+      if(pomoInterval) return;
+      pomoInterval = setInterval(()=>{
+        if(pomoSeconds === 0) {
+          if(pomoMinutes === 0) {
+            clearInterval(pomoInterval);
+            pomoInterval = null;
+            if(!pomoIsBreak) {
+              pomoCycles++;
+              if(pomoCycles % 4 === 0) { pomoMinutes = 15; document.getElementById('pomo-status').textContent = "Take a Long Break!"; }
+              else { pomoMinutes = 5; document.getElementById('pomo-status').textContent = "Take a Short Break!"; }
+              pomoIsBreak = true;
+            } else {
+              pomoMinutes = 25; pomoIsBreak = false; document.getElementById('pomo-status').textContent = "Time to Focus!";
+            }
+            pomoSeconds = 0;
+            updatePomoDisplay();
+            startPomodoro();
+            if("Notification" in window && Notification.permission === "granted") {
+              new Notification("Pomodoro", { body: pomoIsBreak ? "Break started!" : "Focus started!" });
+            }
+            return;
+          }
+          pomoMinutes--; pomoSeconds = 59;
+        } else {
+          pomoSeconds--;
+        }
+        updatePomoDisplay();
+      }, 1000);
+    }
+
+    function pausePomodoro() {
+      clearInterval(pomoInterval); pomoInterval = null;
+    }
+    function resetPomodoro() {
+      clearInterval(pomoInterval); pomoInterval = null;
+      pomoMinutes = 25; pomoSeconds = 0; pomoIsBreak = false; pomoCycles = 0;
+      document.getElementById('pomo-status').textContent = "Ready to Focus!";
+      updatePomoDisplay();
+    }
+
+    document.getElementById('pomoStart').addEventListener('click', ()=>{
+      if(Notification.permission !== "granted") Notification.requestPermission();
+      startPomodoro();
+    });
+    document.getElementById('pomoPause').addEventListener('click', pausePomodoro);
+    document.getElementById('pomoReset').addEventListener('click', resetPomodoro);
+
+    updatePomoDisplay();
+document.getElementById('btnQuickAdd').addEventListener('click', ()=>{
+  const when = new Date(document.getElementById('qaDate').value);
+  const minutes = parseInt(document.getElementById('qaMinutes').value||'0',10);
+  const subject = document.getElementById('qaSubject').value.trim()||'General';
+  if(!when || isNaN(when.getTime()) || minutes<=0){ alert('Enter valid date & minutes'); return; }
+  state.sessions.push({start: when.toISOString(), end: new Date(when.getTime()+minutes*60000).toISOString(), minutes, subject});
+  store.set('sessions', state.sessions);
+  renderDashboard(); renderSessions();
+});
+function renderSessions(){
+  const tbody = document.querySelector('#tblSessions tbody');
+  tbody.innerHTML = '';
+  state.sessions.slice().reverse().forEach((s, idx)=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+  <td>${new Date(s.start).toLocaleString()}</td>
+  <td>${escapeHtml(s.subject)}</td>
+  <td>${s.minutes}</td>
+  <td><button class="btn danger" data-del="${state.sessions.length-1-idx}">Delete</button></td>
+`;
+tbody.appendChild(tr);
+
+  });
+  tbody.querySelectorAll('[data-del]').forEach(btn=> btn.addEventListener('click', ()=>{
+    const i = parseInt(btn.getAttribute('data-del'),10);
+    state.sessions.splice(i,1); store.set('sessions', state.sessions); renderSessions(); renderDashboard();
+  }));
+  document.getElementById('kpi-count').textContent = state.sessions.length;
+}
+let dailyChart=null, weeklyChart=null;
+const chartTypeSel = document.getElementById('chartType');
+chartTypeSel.addEventListener('change', renderDashboard);
+
+function summarize(){
+  const byDay = new Map();
+  const now = new Date();
+  for(let i=6;i>=0;i--){ const d = new Date(now); d.setDate(now.getDate()-i); const k = d.toISOString().slice(0,10); byDay.set(k,0); }
+  state.sessions.forEach(s=>{
+    const day = s.start.slice(0,10); if(byDay.has(day)) byDay.set(day, byDay.get(day)+ (s.minutes||0));
+  });
+  const labels = Array.from(byDay.keys());
+  const minutes = Array.from(byDay.values());
+  const byWeek = new Map();
+  state.sessions.forEach(s=>{
+    const d = new Date(s.start); const wk = isoWeekKey(d); byWeek.set(wk, (byWeek.get(wk)||0)+(s.minutes||0));
+  });
+  const weekEntries = Array.from(byWeek.entries()).sort(([a],[b])=> a.localeCompare(b)).slice(-8);
+  return {labels, minutes, weekLabels: weekEntries.map(e=>e[0]), weekMinutes: weekEntries.map(e=>e[1])};
+}
+
+function renderDashboard(){
+  userNameEl.textContent = state.profile.name || 'Student';
+  const goal = state.profile.goal||0;
+  const todayKey = new Date().toISOString().slice(0,10);
+  const today = state.sessions.filter(s=> s.start.slice(0,10)===todayKey).reduce((a,b)=>a+(b.minutes||0),0);
+  const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate()-6);
+  const weekTotal = state.sessions.filter(s=> new Date(s.start)>=weekAgo).reduce((a,b)=>a+(b.minutes||0),0);
+  document.getElementById('kpi-today').textContent = today+'m';
+  document.getElementById('kpi-week').textContent = weekTotal+'m';
+ document.getElementById('kpi-today-sub').textContent = `Goal: ${goal}m`;
+  document.getElementById('kpi-count').textContent = state.sessions.length;
+
+  const summary = summarize();
+  if(dailyChart) dailyChart.destroy();
+  const type = chartTypeSel.value;
+  const dailyCfg = {
+    type: type==='pie' ? 'pie' : type,
+    data: {
+      labels: summary.labels,
+      datasets: [{
+        label: 'Minutes', data: summary.minutes,
+        borderWidth: 2
+      }]
+    },
+    options: { responsive:true, plugins:{ legend:{ display: type==='pie' }}, scales: (type==='pie'? {} : { y:{ beginAtZero:true } }) }
+  };
+  dailyChart = new Chart(document.getElementById('chartDaily'), dailyCfg);
+  if(weeklyChart) weeklyChart.destroy();
+  weeklyChart = new Chart(document.getElementById('chartWeekly'), {
+    type:'line',
+    data:{ labels: summary.weekLabels, datasets:[{ label:'Minutes', data: summary.weekMinutes, tension:.3, borderWidth:2 }] },
+    options:{ responsive:true, scales:{ y:{ beginAtZero:true } } }
+  });
+}
+
+function isoWeekKey(d) {
+  const dt = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const dayNum = dt.getUTCDay() || 7;
+  dt.setUTCDate(dt.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(dt.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil((((dt - yearStart) / 86400000) + 1) / 7);
+  return `${dt.getUTCFullYear()}-W${String(weekNo).padStart(2,'0')}`;
+}
+
+function escapeHtml(str) {
+  return str.replace(/[&<>"]+/g, s => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[s]));
+}
+const notifyBtn = document.getElementById('btnNotify');
+const notifyBtn2 = document.getElementById('btnNotify2');
+const notifyStatus = document.getElementById('notifyStatus');
+function updateNotifyUI(){
+  const perm = Notification?.permission || 'denied';
+  notifyStatus.textContent = `Notifications: ${perm}`;
+}
+async function enableNotify(){
+  if(!('Notification' in window)){ alert('Notifications not supported'); return; }
+  const res = await Notification.requestPermission(); updateNotifyUI();
+}
+notifyBtn.addEventListener('click', enableNotify);
+notifyBtn2.addEventListener('click', enableNotify);
+updateNotifyUI();
+
+function renderReminders(){
+  const tbody = document.querySelector('#tblReminders tbody');
+  tbody.innerHTML = '';
+  state.reminders.sort((a,b)=> new Date(a.when)-new Date(b.when));
+  state.reminders.forEach((r,i)=>{
+    const tr = document.createElement('tr');
+    const alertStr = r.beforeDays ? `${r.beforeDays} day(s) before` : 'At time';
+    tr.innerHTML = `<td>${new Date(r.when).toLocaleString()}</td>
+                <td>${escapeHtml(r.title)}</td>
+                <td>${alertStr}</td>
+                <td>${r.sound}</td>
+                <td><button class='btn danger' data-rdel='${r.id}'>Delete</button></td>`;
+tbody.appendChild(tr);
+  });
+  tbody.querySelectorAll('[data-rdel]').forEach(btn=> btn.addEventListener('click', ()=>{
+    const id = btn.getAttribute('data-rdel');
+    state.reminders = state.reminders.filter(r=> r.id!==id); store.set('reminders', state.reminders); renderReminders();
+  }));
+}
+
+function scheduleChecker(){
+  const now = Date.now();
+  state.reminders.forEach(r=>{
+    if(r.fired) return;
+    const when = new Date(r.when).getTime();
+    const alertAt = when - (r.beforeDays||0)*86400000;
+    if(now >= alertAt){
+      r.fired = true; store.set('reminders', state.reminders);
+      notify(r.title + (r.beforeDays? ` — ${r.beforeDays} day(s) to go` : ''));
+      playSound(r.sound);
+    }
+  });
+}
+setInterval(scheduleChecker, 60*1000);
+function notify(text){
+  try{
+    if('Notification' in window && Notification.permission==='granted') new Notification('Study Reminder', { body: text });
+    else alert(text);
+  }catch(e){ alert(text); }
+}
+let audioCtx;
+function playSound(name='Simple Beep'){
+  const presets = {
+    'Simple Beep': {type:'sine', seq:[{f:800, t:0.25}]},
+    'Soft Ding': {type:'sine', seq:[{f:660,t:0.12},{f:880,t:0.2}]},
+    'Bell Tone': {type:'sine', seq:[{f:523,t:0.18},{f:659,t:0.18},{f:784,t:0.18}]},
+    'Ping': {type:'square', seq:[{f:1000,t:0.12}]},
+    'Chime': {type:'triangle', seq:[{f:587,t:0.18},{f:880,t:0.22}]},
+    'Alert': {type:'sawtooth', seq:[{f:600,t:0.12},{f:600,t:0.12},{f:600,t:0.12}]},
+    'Digital': {type:'square', seq:[{f:900,t:0.06},{f:700,t:0.06},{f:1100,t:0.1}]},
+    'Echo': {type:'sine', seq:[{f:740,t:0.2},{f:740,t:0.2, g:0.5}]},
+    'Pulse': {type:'square', seq:[{f:500,t:0.08},{f:800,t:0.08},{f:500,t:0.08},{f:800,t:0.12}]},
+    'Wave': {type:'triangle', seq:[{f:400,t:0.2},{f:600,t:0.2},{f:800,t:0.2}]}
+  };
+  const p = presets[name] || presets['Simple Beep'];
+  audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)();
+  let t = audioCtx.currentTime;
+  p.seq.forEach(step=>{
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = p.type; o.frequency.value = step.f;
+    g.gain.setValueAtTime(step.g??1, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + step.t);
+    o.connect(g).connect(audioCtx.destination);
+    o.start(t); o.stop(t + step.t);
+    t += step.t + 0.02;
+  });
+}
+
+document.getElementById('btnTestSound').addEventListener('click', ()=>{
+  const name = document.getElementById('rSound').value; playSound(name);
+});
+
+document.getElementById('btnAddReminder').addEventListener('click', ()=>{
+  const title = document.getElementById('rTitle').value.trim();
+  const whenStr = document.getElementById('rWhen').value; const when = new Date(whenStr);
+  const before = parseInt(document.getElementById('rBefore').value,10);
+  const sound = document.getElementById('rSound').value;
+  if(!title || !whenStr || isNaN(when.getTime())){ alert('Enter title and valid date/time'); return; }
+  const id = crypto.randomUUID?.() || (Date.now()+Math.random()).toString(36);
+  const r = {id, title, when: when.toISOString(), beforeDays: before, sound, fired: false};
+  state.reminders.push(r); store.set('reminders', state.reminders); renderReminders();
+});
+document.getElementById('btnExport').addEventListener('click', ()=>{
+  const data = {
+    sessions: state.sessions,
+    reminders: state.reminders,
+    profile: state.profile
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download='study-tracker-data.json'; a.click(); URL.revokeObjectURL(url);
+});
+
+document.getElementById('btnImport').addEventListener('click', ()=> document.getElementById('importFile').click());
+
+document.getElementById('importFile').addEventListener('change', (e)=>{
+  const f = e.target.files?.[0]; if(!f) return;
+  const reader = new FileReader(); reader.onload = ()=>{
+    try{
+      const data = JSON.parse(reader.result);
+      if(data.sessions) state.sessions = data.sessions;
+      if(data.reminders) state.reminders = data.reminders;
+      if(data.profile) state.profile = data.profile;
+      store.set('sessions', state.sessions); store.set('reminders', state.reminders); store.set('profile', state.profile);
+      renderDashboard(); renderSessions(); renderReminders(); renderProfile();
+    }catch(err){ alert('Invalid file'); }
+  }; reader.readAsText(f);
+});
+
+document.getElementById('btnClear').addEventListener('click', ()=>{
+  if(!confirm('Clear all data?')) return;
+  state.sessions = []; state.reminders=[]; state.profile={name:'Student',email:'',goal:120,avatar:''};
+  store.set('sessions', state.sessions); store.set('reminders', state.reminders); store.set('profile', state.profile);
+  renderDashboard(); renderSessions(); renderReminders(); renderProfile();
+});
+renderDashboard(); renderSessions(); renderReminders(); renderProfile();
+showPage('dashboard');
+</script>
+</body>
+</html>
